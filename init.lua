@@ -99,7 +99,7 @@ do
   vim.g.maplocalleader = ' '
 
   -- Set to true if you have a Nerd Font installed and selected in the terminal
-  vim.g.have_nerd_font = false
+  vim.g.have_nerd_font = true
 
   -- [[ Setting options ]]
   --  See `:help vim.o`
@@ -171,6 +171,14 @@ do
   -- instead raise a dialog asking if you wish to save the current file(s)
   -- See `:help 'confirm'`
   vim.o.confirm = true
+
+  vim.o.termguicolors = true
+
+  -- Indentation
+  vim.o.tabstop = 4
+  vim.o.shiftwidth = 4
+  vim.o.softtabstop = 4
+  vim.o.expandtab = true
 end
 
 -- ============================================================
@@ -365,7 +373,7 @@ do
   vim.pack.add { gh 'folke/which-key.nvim' }
   require('which-key').setup {
     -- Delay between pressing a key and opening which-key (milliseconds)
-    delay = 0,
+    delay = 500,
     icons = { mappings = vim.g.have_nerd_font },
     -- Document existing key chains
     spec = {
@@ -382,18 +390,27 @@ do
   -- change the command under that to load whatever the name of that colorscheme is.
   --
   -- If you want to see what colorschemes are already installed, you can use `:Telescope colorscheme`.
-  vim.pack.add { gh 'folke/tokyonight.nvim' }
-  ---@diagnostic disable-next-line: missing-fields
-  require('tokyonight').setup {
-    styles = {
-      comments = { italic = false }, -- Disable italics in comments
+  --vim.pack.add { { src = gh 'catppuccin/nvim', name = 'catppuccin' } }
+  --require('catppuccin').setup { flavour = 'frappe' }
+  vim.pack.add { gh 'oskarnurm/koda.nvim' }
+  require('koda').setup {
+    -- https://github.com/oskarnurm/koda.nvim/blob/main/lua/koda/palette/dark.lua
+    colors = {
+      --bg         = "#101010",
+      bg         = "#181818",
+      border     = "#474747",
+      emphasis   = "#cccccc",
+      func       = "#d9ba73",
+      string     = "#cccccc",
+      char       = "#cccccc",
+      special    = "#cccccc",
+      --const      = "#d9ba73",
     },
   }
 
   -- Load the colorscheme here.
-  -- Like many other themes, this one has different styles, and you could load
-  -- any other, such as 'tokyonight-storm', 'tokyonight-moon', or 'tokyonight-day'.
-  vim.cmd.colorscheme 'tokyonight-night'
+  --vim.cmd.colorscheme 'catppuccin-nvim'
+  vim.cmd.colorscheme 'koda'
 
   -- Highlight todo, notes, etc in comments
   vim.pack.add { gh 'folke/todo-comments.nvim' }
@@ -438,6 +455,14 @@ do
   local statusline = require 'mini.statusline'
   -- Set `use_icons` to true if you have a Nerd Font
   statusline.setup { use_icons = vim.g.have_nerd_font }
+
+  -- Hide a few sections
+  ---@diagnostic disable-next-line: duplicate-set-field
+  statusline.section_diff = function() return '' end
+  ---@diagnostic disable-next-line: duplicate-set-field
+  statusline.section_lsp = function() return '' end
+  ---@diagnostic disable-next-line: duplicate-set-field
+  statusline.section_fileinfo = function() return '' end
 
   -- You can configure sections in the statusline by overriding their
   -- default behavior. For example, here we set the section for
@@ -490,15 +515,33 @@ do
   vim.pack.add(telescope_plugins)
 
   -- See `:help telescope` and `:help telescope.setup()`
+  local telescope_action_state = require 'telescope.actions.state'
+  local function preview_page_scroll(key)
+    local keycode = vim.api.nvim_replace_termcodes(key, true, false, true)
+    return function(prompt_bufnr)
+      local preview_win = telescope_action_state.get_current_picker(prompt_bufnr).preview_win
+      if not preview_win or not vim.api.nvim_win_is_valid(preview_win) then return end
+
+      vim.api.nvim_win_call(preview_win, function() vim.cmd.normal { args = { keycode }, bang = true } end)
+    end
+  end
+
+  local preview_mappings = {
+    -- Use Vim's native full-page scrolling inside the preview window.
+    ['<C-f>'] = preview_page_scroll '<C-f>',
+    ['<C-b>'] = preview_page_scroll '<C-b>',
+  }
+
   require('telescope').setup {
     -- You can put your default mappings / updates / etc. in here
     --  All the info you're looking for is in `:help telescope.setup()`
     --
-    -- defaults = {
-    --   mappings = {
-    --     i = { ['<c-enter>'] = 'to_fuzzy_refine' },
-    --   },
-    -- },
+    defaults = {
+      mappings = {
+        i = preview_mappings,
+        n = preview_mappings,
+      },
+    },
     -- pickers = {}
     extensions = {
       ['ui-select'] = { require('telescope.themes').get_dropdown() },
@@ -522,6 +565,11 @@ do
   vim.keymap.set('n', '<leader>s.', builtin.oldfiles, { desc = '[S]earch Recent Files ("." for repeat)' })
   vim.keymap.set('n', '<leader>sc', builtin.commands, { desc = '[S]earch [C]ommands' })
   vim.keymap.set('n', '<leader><leader>', builtin.buffers, { desc = '[ ] Find existing buffers' })
+  -- From https://github.com/nvim-telescope/telescope.nvim#usage
+  vim.keymap.set('n', '<leader>ff', builtin.find_files, { desc = 'Telescope find files' })
+  vim.keymap.set('n', '<leader>fg', builtin.live_grep, { desc = 'Telescope live grep' })
+  vim.keymap.set('n', '<leader>fb', builtin.buffers, { desc = 'Telescope buffers' })
+  vim.keymap.set('n', '<leader>fh', builtin.help_tags, { desc = 'Telescope help tags' })
 
   -- Add Telescope-based LSP pickers when an LSP attaches to a buffer.
   -- If you later switch picker plugins, this is where to update these mappings.
@@ -540,7 +588,7 @@ do
       -- Jump to the definition of the word under your cursor.
       -- This is where a variable was first declared, or where a function is defined, etc.
       -- To jump back, press <C-t>.
-      vim.keymap.set('n', 'grd', builtin.lsp_definitions, { buffer = buf, desc = '[G]oto [D]efinition' })
+      vim.keymap.set('n', 'gd', builtin.lsp_definitions, { buffer = buf, desc = '[G]oto [D]efinition' })
 
       -- Fuzzy find all the symbols in your current document.
       -- Symbols are things like variables, functions, types, etc.
@@ -692,16 +740,18 @@ do
   --  See `:help lsp-config` for information about keys and how to configure
   ---@type table<string, vim.lsp.Config>
   local servers = {
+    kotlin_lsp = {},
     -- clangd = {},
     -- gopls = {},
-    -- pyright = {},
+    pyright = {},
+    ruff = {},
     -- rust_analyzer = {},
     --
     -- Some languages (like typescript) have entire language plugins that can be useful:
     --    https://github.com/pmizio/typescript-tools.nvim
     --
     -- But for many setups, the LSP (`ts_ls`) will work just fine
-    -- ts_ls = {},
+    ts_ls = {},
 
     stylua = {}, -- Used to format Lua code
 
@@ -973,7 +1023,7 @@ do
   -- require 'kickstart.plugins.indent_line'
   -- require 'kickstart.plugins.lint'
   -- require 'kickstart.plugins.autopairs'
-  -- require 'kickstart.plugins.neo-tree'
+  require 'kickstart.plugins.neo-tree'
   -- require 'kickstart.plugins.gitsigns' -- adds gitsigns recommended keymaps
 
   -- NOTE: You can add your own plugins, configuration, etc from `lua/custom/plugins/*.lua`
@@ -981,6 +1031,10 @@ do
   --  Uncomment the following line and add your plugins to `lua/custom/plugins/*.lua` to get going.
   -- require 'custom.plugins'
 end
+
+-- Personal settings and overrides. Keep this after the Kickstart configuration
+-- so personal keymaps and options take precedence over defaults and plugins.
+require 'user'
 
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et
